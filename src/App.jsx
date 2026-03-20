@@ -31,10 +31,15 @@ export default function App() {
         }
 
         const res = await fetch(`/api/search?q=${encodeURIComponent(song.query)}`);
+        
+        if (!res.ok) {
+          throw new Error(`API error: ${res.status} ${res.statusText}`);
+        }
+        
         const data = await res.json();
         
         setSongs(prev => prev.map((s, idx) => idx === i 
-          ? { ...s, results: data.results, status: data.results.length ? 'found' : 'not_found' }
+          ? { ...s, results: data.results || [], status: data.results && data.results.length ? 'found' : 'not_found' }
           : s
         ));
       } catch (err) {
@@ -54,6 +59,11 @@ export default function App() {
     
     try {
       const res = await fetch(`/api/fetch-chord?url=${encodeURIComponent(arrangement.url)}&source=${arrangement.source}`);
+      
+      if (!res.ok) {
+        throw new Error(`API error: ${res.status} ${res.statusText}`);
+      }
+      
       const data = await res.json();
       
       const parsed = parseChordSheet(data.rawText, songs[songIdx].query, arrangement.artist);

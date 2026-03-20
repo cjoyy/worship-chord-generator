@@ -7,6 +7,13 @@ const { getArrangelySession } = require('./_arrangely-session');
 
 module.exports = async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
+  res.setHeader('Content-Type', 'application/json; charset=utf-8');
+  
+  // Handle preflight
+  if (req.method === 'OPTIONS') {
+    return res.status(200).end();
+  }
 
   const { url, source } = req.query;
   if (!url) return res.status(400).json({ error: 'Parameter url wajib diisi' });
@@ -38,8 +45,9 @@ module.exports = async function handler(req, res) {
     // Fallback: ambil semua text dari <pre>
     if (!rawText) rawText = $('pre').first().text();
 
-    res.json({ url, rawText: rawText.trim() });
+    res.status(200).json({ url, rawText: rawText.trim() });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    console.error('Fetch chord error:', err);
+    res.status(500).json({ error: 'Failed to fetch chord: ' + err.message });
   }
 };

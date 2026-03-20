@@ -8,7 +8,13 @@ const { getArrangelySession } = require('./_arrangely-session');
 module.exports = async function handler(req, res) {
   // CORS headers agar bisa diakses dari frontend
   res.setHeader('Access-Control-Allow-Origin', '*');
-  res.setHeader('Access-Control-Allow-Methods', 'GET');
+  res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
+  res.setHeader('Content-Type', 'application/json; charset=utf-8');
+  
+  // Handle preflight
+  if (req.method === 'OPTIONS') {
+    return res.status(200).end();
+  }
 
   const { q } = req.query;
   if (!q) return res.status(400).json({ error: 'Parameter q (query) wajib diisi' });

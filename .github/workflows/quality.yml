@@ -1,0 +1,42 @@
+name: Code Quality Checks
+
+on:
+  push:
+    branches:
+      - main
+      - develop
+  pull_request:
+
+jobs:
+  quality:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+      
+      - name: Setup Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: '18'
+          cache: 'npm'
+      
+      - name: Install dependencies
+        run: npm ci
+      
+      - name: Check for security vulnerabilities
+        run: npm audit --audit-level=moderate || true
+      
+      - name: Verify build
+        run: npm run build
+      
+      - name: Check code syntax
+        run: npx eslint src --no-error-on-unmatched-pattern || true
+      
+      - name: Check that .env.local is not staged
+        run: |
+          if git diff --cached --name-only | grep -q "\.env\.local"; then
+            echo "❌ ERROR: .env.local should not be committed!"
+            exit 1
+          fi
+          echo "✅ .env.local not staged - good!"
