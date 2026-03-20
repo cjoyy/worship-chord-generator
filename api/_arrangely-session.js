@@ -1,12 +1,12 @@
 // Helper untuk login ke Arrangely dan maintain session
 // Credentials HANYA dibaca dari ENV — tidak pernah dikirim ke client
 
-const axios = require('axios');
+import axios from 'axios';
 
 let sessionCookie = null;
 let sessionExpiry = null;
 
-async function getArrangelySession() {
+export async function getArrangelySession() {
   // Cek apakah session masih valid (cache 1 jam)
   if (sessionCookie && sessionExpiry && Date.now() < sessionExpiry) {
     return sessionCookie;
@@ -60,5 +60,3 @@ async function getArrangelySession() {
     throw err;
   }
 }
-
-module.exports = { getArrangelySession };

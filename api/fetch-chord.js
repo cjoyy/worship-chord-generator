@@ -1,11 +1,11 @@
 // Endpoint: GET /api/fetch-chord?url=https://...
 // Fetch & parse konten chord dari URL yang dipilih user
 
-const axios = require('axios');
-const cheerio = require('cheerio');
-const { getArrangelySession } = require('./_arrangely-session');
+import axios from 'axios';
+import cheerio from 'cheerio';
+import { getArrangelySession } from './_arrangely-session.js';
 
-module.exports = async function handler(req, res) {
+export default async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
   res.setHeader('Content-Type', 'application/json; charset=utf-8');
