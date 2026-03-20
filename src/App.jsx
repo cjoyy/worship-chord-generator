@@ -12,10 +12,10 @@ export default function App() {
 
   async function handleSearch(songList) {
     setLoading(true);
-    const newSongs = songList.map(q => ({ query: q, results: [], selected: null, parsed: null, status: 'loading' }));
+    const newSongs = songList.map(q => ({ query: q, results: [], selected: null, parsed: null, youtubeUrl: null, status: 'loading' }));
     setSongs(newSongs);
 
-    // Cari semua lagu paralel
+    // Cari semua lagu paralel (chord + YouTube)
     await Promise.all(newSongs.map(async (song, i) => {
       try {
         // Cek cache dulu
@@ -24,22 +24,37 @@ export default function App() {
         if (cached) {
           const data = JSON.parse(cached);
           setSongs(prev => prev.map((s, idx) => idx === i 
-            ? { ...s, results: data.results, parsed: data.parsed, status: data.parsed ? 'ready' : 'cached' }
+            ? { ...s, results: data.results, parsed: data.parsed, youtubeUrl: data.youtubeUrl, status: data.parsed ? 'ready' : 'cached' }
             : s
           ));
           return;
         }
 
-        const res = await fetch(`/api/search?q=${encodeURIComponent(song.query)}`);
+        // Fetch chord dan YouTube secara parallel
+        const [chordRes, youtubeRes] = await Promise.all([
+          fetch(`/api/search?q=${encodeURIComponent(song.query)}`),
+          fetch(`/api/youtube-search?q=${encodeURIComponent(song.query)}`)
+        ]);
         
-        if (!res.ok) {
-          throw new Error(`API error: ${res.status} ${res.statusText}`);
+        if (!chordRes.ok) {
+          throw new Error(`Chord API error: ${chordRes.status} ${chordRes.statusText}`);
         }
         
-        const data = await res.json();
+        const chordData = await chordRes.json();
+        let youtubeUrl = null;
+        
+        // Parse YouTube response (tidak gagal meski YouTube error)
+        try {
+          if (youtubeRes.ok) {
+            const youtubeData = await youtubeRes.json();
+            youtubeUrl = youtubeData.youtube_url;
+          }
+        } catch (e) {
+          console.warn('YouTube fetch error:', e);
+        }
         
         setSongs(prev => prev.map((s, idx) => idx === i 
-          ? { ...s, results: data.results || [], status: data.results && data.results.length ? 'found' : 'not_found' }
+          ? { ...s, results: chordData.results || [], youtubeUrl, status: chordData.results && chordData.results.length ? 'found' : 'not_found' }
           : s
         ));
       } catch (err) {
@@ -68,9 +83,13 @@ export default function App() {
       
       const parsed = parseChordSheet(data.rawText, songs[songIdx].query, arrangement.artist);
       
-      // Simpan ke cache
+      // Simpan ke cache (termasuk YouTube URL)
       const cacheKey = `chord_cache_${songs[songIdx].query.toLowerCase().trim()}`;
-      localStorage.setItem(cacheKey, JSON.stringify({ results: songs[songIdx].results, parsed }));
+      localStorage.setItem(cacheKey, JSON.stringify({ 
+        results: songs[songIdx].results, 
+        parsed,
+        youtubeUrl: songs[songIdx].youtubeUrl
+      }));
 
       setSongs(prev => prev.map((s, i) => i === songIdx 
         ? { ...s, selected: arrangement, parsed, status: 'ready' }

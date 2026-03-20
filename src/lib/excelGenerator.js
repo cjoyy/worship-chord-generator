@@ -75,6 +75,18 @@ export async function generateExcel(songs) {
     metaRow.height = 20;
     row++;
 
+    // ── YOUTUBE LINK ──────────────────────────────────
+    if (song.youtubeUrl) {
+      const youtubeRow = ws.getRow(row);
+      ws.mergeCells(`A${row}:B${row}`);
+      youtubeRow.getCell(1).value = `▶️ Watch on YouTube: ${song.youtubeUrl}`;
+      youtubeRow.getCell(1).font = { name: 'Consolas', color: { argb: 'FFFF0000' }, size: 9 };
+      youtubeRow.getCell(1).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF' + COLORS.header } };
+      youtubeRow.getCell(1).alignment = { horizontal: 'center', vertical: 'middle' };
+      youtubeRow.height = 16;
+      row++;
+    }
+
     // spacer
     ws.getRow(row).height = 8;
     ws.getRow(row).getCell(1).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF' + COLORS.bg } };

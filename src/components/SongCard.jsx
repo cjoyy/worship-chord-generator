@@ -41,7 +41,23 @@ export default function SongCard({ song, onSelect, onClearCache }) {
         {song.error && <span style={{ color: 'var(--accent2)' }}>⚠️ {song.error}</span>}
       </div>
 
-      {song.parsed && <ChordPreview song={song} />}
+      {song.parsed && (
+        <>
+          {song.youtubeUrl && (
+            <div style={{ padding: '12px', backgroundColor: 'var(--surface-darker)', borderTop: '1px solid var(--border)', textAlign: 'center' }}>
+              <a 
+                href={song.youtubeUrl} 
+                target="_blank" 
+                rel="noopener noreferrer"
+                style={{ color: 'var(--accent-gold)', textDecoration: 'none', fontWeight: 600 }}
+              >
+                ▶️ Dengarkan di YouTube
+              </a>
+            </div>
+          )}
+          <ChordPreview song={song} />
+        </>
+      )}
 
       {expanded && !song.parsed && song.results.length > 0 && (
         <div className="song-card-body">
