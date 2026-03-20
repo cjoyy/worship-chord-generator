@@ -2,7 +2,7 @@
 // Fetch & parse konten chord dari URL yang dipilih user
 
 import axios from 'axios';
-import cheerio from 'cheerio';
+import { load as cheerioLoad } from 'cheerio';
 import { getArrangelySession } from './_arrangely-session.js';
 
 export default async function handler(req, res) {
@@ -28,7 +28,7 @@ export default async function handler(req, res) {
     }
 
     const pageRes = await axios.get(url, { headers });
-    const $ = cheerio.load(pageRes.data);
+    const $ = cheerioLoad(pageRes.data);
 
     let rawText = '';
 

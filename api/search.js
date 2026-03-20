@@ -2,7 +2,7 @@
 // Cari chord dari Chordtela, Ultimate Guitar (public sources tanpa auth)
 
 import axios from 'axios';
-import cheerio from 'cheerio';
+import { load as cheerioLoad } from 'cheerio';
 
 export default async function handler(req, res) {
   // CORS headers
@@ -32,7 +32,7 @@ export default async function handler(req, res) {
       }
     );
     
-    const $ = cheerio.load(chordtelaRes.data);
+    const $ = cheerioLoad(chordtelaRes.data);
     
     // Chordtela: look for song links
     $('a[href*="/chord/"]').each((i, el) => {
@@ -66,7 +66,7 @@ export default async function handler(req, res) {
         }
       );
       
-      const $ = cheerio.load(ugRes.data);
+      const $ = cheerioLoad(ugRes.data);
       
       // Ultimate Guitar: look for tab links
       $('a[href*="/tab/"]').each((i, el) => {
