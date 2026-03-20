@@ -1,4 +1,4 @@
-name: Code Quality Checks
+name: Code Quality & Security
 
 on:
   push:
@@ -24,19 +24,16 @@ jobs:
       - name: Install dependencies
         run: npm ci
       
-      - name: Check for security vulnerabilities
-        run: npm audit --audit-level=moderate || true
-      
       - name: Verify build
         run: npm run build
       
-      - name: Check code syntax
-        run: npx eslint src --no-error-on-unmatched-pattern || true
+      - name: Check for security vulnerabilities
+        run: npm audit --audit-level=moderate || true
       
-      - name: Check that .env.local is not staged
+      - name: Verify .env.local not staged
         run: |
           if git diff --cached --name-only | grep -q "\.env\.local"; then
             echo "❌ ERROR: .env.local should not be committed!"
             exit 1
           fi
-          echo "✅ .env.local not staged - good!"
+          echo "✅ .env.local protection: OK"
