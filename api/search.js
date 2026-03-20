@@ -1,9 +1,8 @@
 // Endpoint: GET /api/search?q=nama+lagu
-// Cari chord dari Arrangely dulu, fallback ke Chordtela
+// Cari chord dari Chordtela, Ultimate Guitar, dengan Arrangely sebagai fallback
 
 const axios = require('axios');
 const cheerio = require('cheerio');
-const { getArrangelySession } = require('./_arrangely-session');
 
 module.exports = async function handler(req, res) {
   // CORS headers agar bisa diakses dari frontend
@@ -21,43 +20,114 @@ module.exports = async function handler(req, res) {
 
   const results = [];
 
-  // ─── CARI DI ARRANGELY ───────────────────────────────────────
+  // ─── SEARCH CHORDTELA (Public, no auth needed) ─────────────────────────────────────
   try {
-    const session = await getArrangelySession();
-    const searchRes = await axios.get(`https://arrangely.io/search?q=${encodeURIComponent(q)}`, {
-      headers: {
-        'Cookie': session,
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+    const chordtelaRes = await axios.get(
+      `https://www.chordtela.com/search/?s=${encodeURIComponent(q)}`,
+      { 
+        headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36' },
+        timeout: 5000
+      }
+    );
+    
+    const $ = cheerio.load(chordtelaRes.data);
+    
+    // Chordtela structure: .content-lagu atau .search-result items
+    $('article, .content-lagu, [data-lagu]').each((i, el) => {
+      if (i >= 5) return false; // maks 5 hasil
+      const title = $(el).find('h2, h3, .judul, .title').first().text().trim();
+      const artist = $(el).find('.artist, .penyanyi, .artis, .author').first().text().trim();
+      const url = $(el).find('a').attr('href');
+      
+      if (title && url) {
+        results.push({
+          source: 'chordtela',
+          title: title,
+          artist: artist || '—',
+          url: url.startsWith('http') ? url : `https://www.chordtela.com${url}`,
+        });
       }
     });
-
-    const $ = cheerio.load(searchRes.data);
-    
-    // Sesuaikan selector ini dengan struktur HTML Arrangely sebenarnya
-    // Inspect element di arrangely.io/search untuk tahu class yang benar
-    $('.arrangement-card, .song-item, [data-arrangement]').each((i, el) => {
-      if (i >= 5) return false; // maks 5 hasil
-      results.push({
-        source: 'arrangely',
-        title: $(el).find('.title, h3, h4').first().text().trim(),
-        artist: $(el).find('.artist, .subtitle').first().text().trim(),
-        key: $(el).find('.key, [data-key]').first().text().trim(),
-        tempo: $(el).find('.tempo, [data-tempo]').first().text().trim(),
-        url: 'https://arrangely.io' + ($(el).find('a').attr('href') || $(el).attr('href') || ''),
-        arranger: $(el).find('.arranger, .author').first().text().trim(),
-      });
-    });
+    console.log(`Chordtela: found ${results.length} results`);
   } catch (err) {
-    console.warn('Arrangely search gagal:', err.message);
-    // Lanjut ke fallback, jangan crash
+    console.warn('Chordtela search error:', err.message);
   }
 
-  // ─── FALLBACK: CHORDTELA ─────────────────────────────────────
+  // ─── FALLBACK: ULTIMATE GUITAR ─────────────────────────────────────
   if (results.length === 0) {
     try {
-      const chordtelaRes = await axios.get(
-        `https://www.chordtela.com/search/?s=${encodeURIComponent(q)}`,
-        { headers: { 'User-Agent': 'Mozilla/5.0' } }
+      // Ultimate Guitar has a JSON API
+      const ugRes = await axios.get(
+        `https://www.ultimate-guitar.com/search.php?search_type=title&value=${encodeURIComponent(q)}`,
+        { 
+          headers: { 'User-Agent': 'Mozilla/5.0' },
+          timeout: 5000
+        }
+      );
+      
+      const $ = cheerio.load(ugRes.data);
+      $('[class*="result"], .item, li[data-tab]').each((i, el) => {
+        if (i >= 5) return false;
+        const title = $(el).find('a, h3, h4').first().text().trim();
+        const artist = $(el).find('.artist, .author, .subtitle').first().text().trim();
+        const url = $(el).find('a').attr('href');
+        
+        if (title && url) {
+          results.push({
+            source: 'ultimate-guitar',
+            title: title,
+            artist: artist || '—',
+            url: url.startsWith('http') ? url : `https://www.ultimate-guitar.com${url}`,
+          });
+        }
+      });
+      console.log(`Ultimate Guitar: found ${results.length} results`);
+    } catch (err) {
+      console.warn('Ultimate Guitar search error:', err.message);
+    }
+  }
+
+  // ─── OPTIONAL: Try Arrangely if still no results ───────────────────────────────────
+  if (results.length === 0) {
+    try {
+      // Try simple Arrangely search without auth (might work for public arrangements)
+      const arrangRes = await axios.get(
+        `https://arrangely.io/search?q=${encodeURIComponent(q)}`,
+        {
+          headers: { 'User-Agent': 'Mozilla/5.0' },
+          timeout: 5000
+        }
+      );
+      
+      const $ = cheerio.load(arrangRes.data);
+      $('.arrangement-card, .song-item, [data-arrangement]').each((i, el) => {
+        if (i >= 5) return false;
+        const title = $(el).find('.title, h3, h4').first().text().trim();
+        const artist = $(el).find('.artist, .subtitle').first().text().trim();
+        const url = $(el).attr('href') || $(el).find('a').attr('href');
+        
+        if (title && url) {
+          results.push({
+            source: 'arrangely',
+            title: title,
+            artist: artist || '—',
+            url: url.startsWith('http') ? url : `https://arrangely.io${url}`,
+          });
+        }
+      });
+      console.log(`Arrangely: found ${results.length} results`);
+    } catch (err) {
+      console.warn('Arrangely search error:', err.message);
+    }
+  }
+
+  res.json({
+    query: q,
+    results: results.slice(0, 10),
+    sources_tried: ['chordtela', 'ultimate-guitar', 'arrangely'],
+    total: results.length
+  });
+};
       );
       const $ = cheerio.load(chordtelaRes.data);
       
