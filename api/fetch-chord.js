@@ -1,53 +1,82 @@
 // Endpoint: GET /api/fetch-chord?url=https://...
-// Fetch & parse konten chord dari URL yang dipilih user
+// Fetch & parse chord content dari URL tanpa auth requirement
 
 import axios from 'axios';
 import { load as cheerioLoad } from 'cheerio';
-import { getArrangelySession } from './_arrangely-session.js';
+
+const USER_AGENT = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36';
 
 export default async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
   res.setHeader('Content-Type', 'application/json; charset=utf-8');
   
-  // Handle preflight
   if (req.method === 'OPTIONS') {
     return res.status(200).end();
   }
 
   const { url, source } = req.query;
-  if (!url) return res.status(400).json({ error: 'Parameter url wajib diisi' });
+  if (!url || !url.startsWith('http')) {
+    return res.status(400).json({ error: 'Valid "url" parameter is required' });
+  }
 
   try {
-    let headers = { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36' };
-    
-    // Kalau dari Arrangely, pakai session cookie
-    if (source === 'arrangely') {
-      const session = await getArrangelySession();
-      headers['Cookie'] = session;
+    console.log(`[fetch-chord] Fetching: ${url} (source: ${source})`);
+
+    const pageRes = await axios.get(url, { 
+      headers: { 'User-Agent': USER_AGENT },
+      timeout: 10000,
+      validateStatus: (status) => status < 500 // Don't throw on 4xx
+    });
+
+    if (pageRes.status !== 200) {
+      return res.status(pageRes.status).json({ 
+        error: `Failed to fetch URL (status: ${pageRes.status})`,
+        url: url
+      });
     }
 
-    const pageRes = await axios.get(url, { headers });
     const $ = cheerioLoad(pageRes.data);
-
     let rawText = '';
 
-    // Arrangely biasanya punya element khusus untuk chord sheet
-    // Inspect HTML arrangely.io untuk tahu selector yang tepat
-    if (source === 'arrangely') {
-      rawText = $('.chord-sheet, .arrangement-content, pre, [data-chord-sheet]').first().text();
-    } else if (source === 'chordtela') {
-      rawText = $('.chord-area, .kord, pre').first().text();
-    } else {
-      rawText = $('pre, .js-tab-content, [data-content="tab"]').first().text();
+    // Try source-specific selectors first
+    if (source === 'chordtela') {
+      rawText = $('.chord-area, .kord, pre, code').first().text();
+    } else if (source === 'ultimate-guitar') {
+      rawText = $('pre, .js-tab-content, [data-content="tab"], .t_b').first().text();
     }
 
-    // Fallback: ambil semua text dari <pre>
-    if (!rawText) rawText = $('pre').first().text();
+    // Fallback: try common chord sheet selectors
+    if (!rawText) {
+      rawText = $('pre, code, .chord-sheet, .arrangement-content, [data-chord-sheet]').first().text();
+    }
 
-    res.status(200).json({ url, rawText: rawText.trim() });
+    // Last resort: get all text from main content areas
+    if (!rawText) {
+      const main = $('main, article, .content, body').first().text();
+      rawText = main.length > 50 ? main : '';
+    }
+
+    if (!rawText || rawText.trim().length < 20) {
+      return res.status(200).json({ 
+        url: url, 
+        rawText: '',
+        message: 'No chord content found on this page. Try copying the text directly.'
+      });
+    }
+
+    res.json({ 
+      url: url, 
+      rawText: rawText.trim(),
+      length: rawText.length
+    });
+
   } catch (err) {
-    console.error('Fetch chord error:', err);
-    res.status(500).json({ error: 'Failed to fetch chord: ' + err.message });
+    console.error(`[fetch-chord] Error fetching ${url}:`, err.message);
+    res.status(500).json({ 
+      error: 'Failed to fetch URL',
+      details: err.message,
+      url: url
+    });
   }
 };
